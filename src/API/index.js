@@ -1,7 +1,7 @@
 import qs from 'qs';
 import axios from 'axios';
 import Token from './Token';
-import API_CODE from './Code';
+import RESPONSE_CODE from './Code';
 import { notification as Notification } from 'antd';
 
 const Axios = axios.create({ baseURL: '/api', timeout: 30000 });
@@ -35,7 +35,9 @@ Axios.interceptors.request.use(
     }
 );
 
+// 请求响应拦截器
 Axios.interceptors.response.use(
+    // 请求响应正常
     (response) => {
         let data;
         if (response.data === undefined) {
@@ -44,38 +46,42 @@ Axios.interceptors.response.use(
             data = response.data;
         }
 
-        // 根据返回的code值来做不同的处理（和后端约定）
         switch (data.code) {
-            case API_CODE.SUCCESS:
+            // 如果请求正常
+            case RESPONSE_CODE.SUCCESS:
                 break;
-            case API_CODE.ERROR:
-                // 请求异常逻辑
-                Notification.open({
-                    key: 'failure',
-                    message: '请求失败',
-                    description: data.msg,
-                });
-                break;
-            case 401:
-                console.log('1111');
-                // window.location.replace('/user/login')
+            // 如果身份认证失败
+            case RESPONSE_CODE.UN_AUTH:
                 Notification.open({
                     key: 'failure',
                     message: '身份失效，请重新登录',
                     description: '身份失效，请重新登录',
                 });
                 break;
+            // 如果请求异常
+            case RESPONSE_CODE.ERROR:
+                Notification.open({
+                    key: 'failure',
+                    message: '请求失败',
+                    description: data.msg,
+                });
+                break;
             default:
-                // 请求异常逻辑
+                // 其他情况
                 Notification.open({
                     key: 'other',
                     message: '发生错误',
                     description: data.msg,
                 });
-                return Promise.reject();
+                return Promise.reject({
+                    key: 'error',
+                    message: '发生错误',
+                    description: data.msg,
+                });
         }
         return data;
     },
+    // 请求响应异常
     (error) => {
         // loading 关闭
         // 请求超时
@@ -138,9 +144,9 @@ class API {
         POST: 'post',
     };
 
-    static API_CODE = { ...API_CODE };
+    static CODE = { ...RESPONSE_CODE };
 
-    static Token = { ...Token };
+    static TOKEN = { ...Token };
 
     static config = (httpMethod, url, params) => {
         return new API(httpMethod, url, params);
@@ -162,7 +168,7 @@ class API {
 
     _params = null;
 
-    _is_need_token = false;
+    _is_need_token = true;
 
     _t = null;
 
@@ -197,15 +203,15 @@ class API {
     };
 
     setAuth = () => {
-        this._is_need_token = true;
+        this._is_need_token = false;
         return this;
     };
 
-    commit = async (timeout = 10 * 1000) => {
-        if (this._is_need_token && !Token.getToken()) {
-            console.error('令牌不存在或已失效');
-            return false;
-        }
+    commit = (timeout = 10 * 1000) => {
+        // if (this._is_need_token && !Token.getToken()) {
+        //     console.error('令牌不存在或已失效');
+        //     return false;
+        // }
 
         const Authorization = this._is_need_token
             ? { Authorization: Token.getToken() }
@@ -235,7 +241,19 @@ class API {
             },
         });
 
-        return axios;
+        return new Promise((resolve, reject) => {
+            axios.then().catch(error => {
+                switch (error) {
+                    case RESPONSE_CODE.UN_AUTH:
+                        // 跳转到登录页面
+                        break;
+                
+                    default:
+
+                        break;
+                }
+            });
+        });
     };
 }
 

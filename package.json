@@ -144,5 +144,13 @@
             "jest-watch-typeahead/testname"
         ]
     },
-    "homepage": "mh113-web"
+    "babel": {
+      "presets": [
+        "react-app"
+      ]
+    },
+    "homepage": "mh113-web",
+    "devDependencies": {
+        "@babel/plugin-proposal-class-properties": "^7.12.1"
+    }
 }
