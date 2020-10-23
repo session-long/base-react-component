@@ -145,9 +145,9 @@
         ]
     },
     "babel": {
-      "presets": [
-        "react-app"
-      ]
+        "presets": [
+            "react-app"
+        ]
     },
     "homepage": "mh113-web",
     "devDependencies": {
