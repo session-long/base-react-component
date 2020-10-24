@@ -1,4 +1,5 @@
 import Tile from './Tile';
+import config from '../config';
 
 const sideLength = 256;
 
@@ -38,16 +39,21 @@ class LngLat {
         return ((this.lng + 180) / 360) * Math.pow(2, zoom);
     };
 
-    __to_tile_y = (zoom) => {
-        return Math.abs(
+    __to_real_y = (zoom) => {
+        return (
             (1 / 2 -
                 Math.log(
-                    Math.tan((this.lat * Math.PI) / 180) +
-                        1 / Math.cos((this.lat * Math.PI) / 180)
+                    Math.tan(this.lat * (Math.PI / 180)) +
+                        1 / Math.cos(this.lat * (Math.PI / 180))
                 ) /
                     (2 * Math.PI)) *
-                Math.pow(2, zoom)
+            Math.pow(2, zoom)
         );
+    };
+
+    __to_tile_y = (zoom) => {
+        const v = this.__to_real_y(zoom);
+        return Math.ceil(v);
     };
 
     __to_pixel_x = (zoom) => {
@@ -59,15 +65,7 @@ class LngLat {
 
     __to_pixel_y = (zoom) => {
         return (
-            (1 -
-                (Math.log(
-                    Math.tan((this.lat * Math.PI) / 180) +
-                        1 / Math.cos((this.lat * Math.PI) / 180)
-                ) /
-                    (2 * Math.PI)) *
-                    Math.pow(2, zoom) *
-                    256) %
-            256
+            (this.__to_real_y(zoom) - this.__to_tile_y(zoom)) * config.length
         );
     };
 }

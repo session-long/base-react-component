@@ -45,6 +45,14 @@ class Map extends React.Component {
         };
     };
 
+    __reset_temp_offset = () => {
+        this._temp_offset = {
+            top: 0,
+            left: 0,
+            zoom: 10,
+        };
+    };
+
     /**
      * 【缺省】中心经纬度点
      */
@@ -54,12 +62,7 @@ class Map extends React.Component {
      * 中心经纬度点
      */
     _center = new LngLat(116.40769, 39.89945);
-
-    moveCenter = (top, left) => {
-        console.log(top, left, top / 256, left / 256);
-        this._center_point._top += top;
-        this._center_point._left += left;
-    };
+    // _center = new LngLat(116.29782671875, 39.96);
 
     _grid = null;
 
@@ -93,14 +96,16 @@ class Map extends React.Component {
         // 构建中心像素点
         this.__init_center_point();
 
+        // 构建网格
+        this.__init_grid();
+
         // 根据中心经纬度点计算偏移量
         this.__init_offset();
 
-        this.__init_base_layer();
-
-        // 构建网格
-        this.__init_grid();
         this.__refresh_grid();
+
+        // 其他
+        this.__init_base_layer();
 
         this.setState({ init: true });
     }
@@ -113,10 +118,9 @@ class Map extends React.Component {
 
     __init_offset = () => {
         const { pixelX, pixelY } = this._center.toTile(this._zoom);
-        const { top, left, zoom } = this._temp_offset;
         this._offset = {
-            top: -1 * pixelY - Math.pow(2, this._zoom - zoom) * top,
-            left: -1 * pixelX - Math.pow(2, this._zoom - zoom) * left,
+            top: -1 * (pixelY % config.length),
+            left: -1 * (pixelX % config.length),
         };
     };
 
@@ -187,7 +191,34 @@ class Map extends React.Component {
         return list;
     };
 
-    centerAndZoom = (center, zoom) => {};
+    centerAndZoom = (center = this._center, zoom = this._zoom) => {
+        this._center = center;
+
+        // 根据中心经纬度点计算偏移量
+        this.__init_offset();
+
+        // 刷新网格
+        this.__refresh_grid();
+
+        // 改变层级
+        this.__set_zoom(zoom);
+
+        // 根据中心经纬度点计算偏移量
+        this.__init_offset();
+
+        // 刷新网格
+        this.__refresh_grid();
+    };
+
+    centerTo = (lnglat) => {
+        this._center = lnglat;
+    };
+
+    zoomTo = (zoom) => {
+        this.__set_zoom(zoom);
+        this.__refresh_offset();
+        this.__refresh_grid();
+    };
 
     zoomIn = async () => {
         const z = this._zoom;
@@ -197,17 +228,6 @@ class Map extends React.Component {
     zoomOut = async () => {
         const z = this._zoom;
         return await this.zoomTo(z - 1);
-    };
-
-    zoomTo = (zoom) => {
-        return new Promise((resolve) => {
-            this.__set_zoom(zoom);
-            this.__refresh_offset();
-            this.__refresh_grid();
-            this.zoomTimer = setTimeout(() => {
-                resolve(true);
-            }, 500);
-        });
     };
 
     dragTo = (top = 0, left = 0) => {
@@ -231,26 +251,8 @@ class Map extends React.Component {
 
     cleanOverlays = () => {};
 
-    __compute_mouse_point = (clientX, clientY) => {
-        // 计算鼠标所在位置的经纬度
-        const { x, y } = this.centerPoint.getBoundingClientRect();
-        const { tileX, tileY, pixelX, pixelY } = this._center.toTile(
-            this._zoom
-        );
-        const offsetX = clientX - x;
-        const offsetY = clientY - y;
-        const temp = new Tile(
-            this._zoom,
-            tileX + Math.floor(offsetX / config.length),
-            tileY + Math.ceil(offsetY / config.length),
-            pixelX + (offsetX % config.length),
-            pixelY + (offsetY % config.length)
-        );
-        // console.log(temp.toLngLat());
-        return temp;
-    };
-
     refresh = () => {
+        this.__reset_temp_offset();
         this.setState({});
     };
 
@@ -283,28 +285,41 @@ class Map extends React.Component {
                 }}
                 onWheel={async (e) => {
                     e.stopPropagation();
+
+                    // 中心点的像素位置
+                    const { x, y } = this.centerPoint.getBoundingClientRect();
+
+                    // 鼠标点的像素位置
                     const { clientX, clientY } = e;
 
-                    const { x, y } = this.centerPoint.getBoundingClientRect();
-                    this.__set_temp_offset(clientY - y, clientX - x);
+                    // 计算偏移量
+                    const offset = { x: clientX - x, y: clientY - y };
 
-                    // this.dragTo(-1 * offsetLeft, -1 * offsetTop);
-                    if (this.state.wheeling) return;
-                    if (this.zoomTimer) clearTimeout(this.zoomTimer);
-                    this.state.wheeling = true;
-                    //判断鼠标滚轮的上下滑动
+                    // 鼠标点的瓦片数据
+                    const targetTile = this._center
+                        .toTile(this._zoom)
+                        .clone()
+                        .move(offset.x, offset.y);
+
+                    // 鼠标点的经纬度
+                    const targetLngLat = targetTile.toLngLat();
+
+                    // 判断鼠标滚轮的上下滑动
                     const deta = e.deltaY;
-                    let d = null;
                     if (deta > 0) {
-                        d = 'out';
-                        await this.zoomOut();
+                        this.centerAndZoom(targetLngLat, this._zoom - 1);
+                    } else if (deta < 0) {
+                        this.centerAndZoom(targetLngLat, this._zoom + 1);
                     }
-                    if (deta < 0) {
-                        d = 'in';
-                        await this.zoomIn();
-                    }
-                    this.dragTo(clientY - y, clientX - x);
-                    this.state.wheeling = false;
+
+                    // 中心点归位
+                    const newCenterTile = targetLngLat
+                        .toTile(this._zoom)
+                        .clone()
+                        .move(-1 * offset.x, -1 * offset.y);
+
+                    this.centerAndZoom(newCenterTile.toLngLat());
+
                     this.refresh();
                 }}
             >
@@ -410,7 +425,7 @@ class Map extends React.Component {
                         width: `${config.length}px`,
                         height: `${config.length}px`,
                         borderRadius: '5px',
-                        top: this._center_point.top - config.length,
+                        top: this._center_point.top,
                         left: this._center_point.left,
                         zIndex: index,
                         transform: `translate3d(${left}px, ${top}px, 0px)`,

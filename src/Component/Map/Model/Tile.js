@@ -40,25 +40,24 @@ class Tile {
         this._pixel_y = pixelY;
     }
 
+    clone = () => {
+        return new Tile(
+            this._zoom,
+            this.tileX,
+            this.tileY,
+            this.pixelX,
+            this.pixelY
+        );
+    };
+
     move = (x, y) => {
-        const offsetTileX = Math.floor(x / config.length);
-        const offsetTileY = Math.floor(y / config.length);
-        const offsetPixelX = x % config.length;
-        const offsetPixelY = y % config.length;
-        if (Math.abs(offsetPixelX + this.pixelX) > config.length) {
-            this._tile_x += offsetTileX + 1;
-            this._pixel_x = (offsetPixelX + this.pixelX) % config.length;
-        } else {
-            this._tile_x += offsetTileX;
-            this._pixel_x = offsetPixelX + this.pixelX;
-        }
-        if (Math.abs(offsetPixelY + this.pixelY) > config.length) {
-            this._tile_y += offsetTileY + 1;
-            this._pixel_y = (offsetPixelY + this.pixelY) % config.length;
-        } else {
-            this._tile_y += offsetTileY;
-            this._pixel_y = offsetPixelY + this.pixelY;
-        }
+        const fullX = this._tile_x * config.length + this._pixel_x + x;
+        const fullY = this._tile_y * config.length + this._pixel_y + y;
+        this._tile_x = Math.floor(fullX / config.length);
+        this._pixel_x = fullX % config.length;
+        this._tile_y = Math.ceil(fullY / config.length);
+        this._pixel_y = (fullY % config.length) - config.length;
+        return this;
     };
 
     toLngLat = () => {
@@ -78,7 +77,7 @@ class Tile {
 
     __to_lat = () => {
         return (
-            (Math.atan(
+            Math.atan(
                 Math.sinh(
                     Math.PI -
                         (2 *
@@ -87,8 +86,7 @@ class Tile {
                             Math.pow(2, this.zoom)
                 )
             ) *
-                180) /
-            Math.PI
+            (180 / Math.PI)
         );
     };
 }
