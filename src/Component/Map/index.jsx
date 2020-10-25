@@ -216,24 +216,12 @@ class Map extends React.Component {
         this.__refresh_grid();
     };
 
-    centerTo = (lnglat) => {
-        this._center = lnglat;
+    zoomIn = () => {
+        this.centerAndZoom(this._center, this._zoom + 1);
     };
 
-    zoomTo = (zoom) => {
-        this.__set_zoom(zoom);
-        this.__refresh_offset();
-        this.__refresh_grid();
-    };
-
-    zoomIn = async () => {
-        const z = this._zoom;
-        return await this.zoomTo(z + 1);
-    };
-
-    zoomOut = async () => {
-        const z = this._zoom;
-        return await this.zoomTo(z - 1);
+    zoomOut = () => {
+        this.centerAndZoom(this._center, this._zoom - 1);
     };
 
     setBaseLayer = (layer) => {};
@@ -333,8 +321,9 @@ class Map extends React.Component {
                                   zIndex: 9,
                               }}
                           >
-                              {' '}
-                              map
+                              <div style={{ backgroundColor: '#ffffff' }}>
+                                  地图当前层级 {this._zoom}
+                              </div>
                               <button
                                   onClick={(e) => {
                                       this.zoomIn();
@@ -351,6 +340,7 @@ class Map extends React.Component {
                               >
                                   缩小
                               </button>
+                              <button onClick={(e) => {}}>测面积</button>
                           </div>,
                           <div
                               key='grid'
