@@ -62,7 +62,7 @@ class Map extends React.Component {
      * 中心经纬度点
      */
     _center = new LngLat(116.40769, 39.89945);
-    // _center = new LngLat(116.29782671875, 39.96);
+    // _center = new LngLat(117.2, 39.13);
 
     _grid = null;
 
@@ -82,7 +82,11 @@ class Map extends React.Component {
 
     _base_layer = null;
 
-    _layers = [];
+    _layers = [
+        new Layer('http://c.tile.stamen.com/toner/{z}/{x}/{y}.png', {
+            bounds: [new LngLat(117.2, 39.13), new LngLat(116.40769, 39.89945)],
+        }),
+    ];
 
     _overlays = [];
 
@@ -92,6 +96,8 @@ class Map extends React.Component {
 
     componentDidMount() {
         console.log('地图初始化');
+        console.log(new LngLat(116.40769, 39.89945).toTile(10));
+        console.log(new LngLat(117.2, 39.13).toTile(10));
 
         // 构建中心像素点
         this.__init_center_point();
@@ -230,13 +236,6 @@ class Map extends React.Component {
         return await this.zoomTo(z - 1);
     };
 
-    dragTo = (top = 0, left = 0) => {
-        this._offset.left += left;
-        this._offset.top += top;
-
-        this.__refresh_grid();
-    };
-
     setBaseLayer = (layer) => {};
 
     addLayer = (layer) => {};
@@ -360,35 +359,40 @@ class Map extends React.Component {
                                   transform: `translate3d(${this._offset.left}px, ${this._offset.top}px, 0px)`,
                               }}
                           >
-                              {this._grid_points.map((item) => {
-                                  return (
-                                      <div
-                                          key={`grid-point-${item.t}-${item.x}-${item.y}`}
-                                          className='grid-point'
-                                          style={{
-                                              width: '10px',
-                                              height: '10px',
-                                              borderRadius: '5px',
-                                              top: this._center_point.top - 5,
-                                              left: this._center_point.left - 5,
-                                              transform: `translate3d(${item.left}px, ${item.top}px, 0px)`,
-                                          }}
-                                      >
+                              {config.testModel &&
+                                  this._grid_points.map((item) => {
+                                      return (
                                           <div
+                                              key={`grid-point-${item.t}-${item.x}-${item.y}`}
+                                              className='grid-point'
                                               style={{
-                                                  position: 'absolute',
-                                                  top: '-6px',
-                                                  left: '20px',
-                                                  width: '200px',
-                                                  height: '24px',
-                                                  lineHeight: '24px',
+                                                  width: '10px',
+                                                  height: '10px',
+                                                  borderRadius: '5px',
+                                                  top:
+                                                      this._center_point.top -
+                                                      5,
+                                                  left:
+                                                      this._center_point.left -
+                                                      5,
+                                                  transform: `translate3d(${item.left}px, ${item.top}px, 0px)`,
                                               }}
                                           >
-                                              {item.x} : {item.y}
+                                              <div
+                                                  style={{
+                                                      position: 'absolute',
+                                                      top: '-6px',
+                                                      left: '20px',
+                                                      width: '200px',
+                                                      height: '24px',
+                                                      lineHeight: '24px',
+                                                  }}
+                                              >
+                                                  {item.x} : {item.y}
+                                              </div>
                                           </div>
-                                      </div>
-                                  );
-                              })}
+                                      );
+                                  })}
                               {!config.testModel &&
                                   this._grid_points.map((item) => {
                                       return this.renderLayers(item);
@@ -414,7 +418,28 @@ class Map extends React.Component {
         const list = [this._base_layer].concat(this._layers);
         return list.map((layer, index) => {
             const src = layer.toRealUrl(z, tileX + x, tileY + y);
-            return (
+            const bounds = layer.config.bounds;
+            let isIn = true;
+            if (bounds) {
+                const topLeft = new LngLat(
+                    layer.config.minLng,
+                    layer.config.maxLat
+                );
+                const bottomRight = new LngLat(
+                    layer.config.maxLng,
+                    layer.config.minLat
+                );
+                const maxTileX = bottomRight.toTile(z).tileX;
+                const maxTileY = bottomRight.toTile(z).tileY;
+                const minTileX = topLeft.toTile(z).tileX;
+                const minTileY = topLeft.toTile(z).tileY;
+
+                if (tileX + x > maxTileX) isIn = false;
+                if (tileX + x < minTileX) isIn = false;
+                if (tileY + y + 1 > maxTileY) isIn = false;
+                if (tileY + y + 1 < minTileY) isIn = false;
+            }
+            return isIn ? (
                 <img
                     key={`layer-tile-${
                         index === 0 ? 'default' : index
@@ -429,12 +454,12 @@ class Map extends React.Component {
                         left: this._center_point.left,
                         zIndex: index,
                         transform: `translate3d(${left}px, ${top}px, 0px)`,
-                        opacity: '.65',
+                        opacity: '1',
                         userSelect: 'none',
                     }}
                     src={src}
                 />
-            );
+            ) : null;
         });
     }
 }
