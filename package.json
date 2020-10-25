@@ -145,9 +145,17 @@
         ]
     },
     "babel": {
-      "presets": [
-        "react-app"
-      ]
+        "plugins": [
+            [
+                "@babel/plugin-proposal-decorators",
+                {
+                    "legacy": true
+                }
+            ]
+        ],
+        "presets": [
+            "react-app"
+        ]
     },
     "homepage": "mh113-web",
     "devDependencies": {
