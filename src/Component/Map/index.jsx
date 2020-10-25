@@ -8,6 +8,7 @@ import Layer from './Model/Layer';
 import config from './config';
 import cache from './cache';
 import Tile from './Model/Tile';
+import Graphs from './Graphs';
 
 class Map extends React.Component {
     state = {
@@ -61,7 +62,9 @@ class Map extends React.Component {
     /**
      * 中心经纬度点
      */
+    // 北京
     _center = new LngLat(116.40769, 39.89945);
+    // 天津
     // _center = new LngLat(117.2, 39.13);
 
     _grid = null;
@@ -114,6 +117,10 @@ class Map extends React.Component {
         this.__init_base_layer();
 
         this.setState({ init: true });
+
+        // setTimeout(() => {
+        //     this.centerAndZoom(new LngLat(117.2, 39.13));
+        // }, 3000);
     }
 
     __init_center_point = () => {
@@ -214,6 +221,8 @@ class Map extends React.Component {
 
         // 刷新网格
         this.__refresh_grid();
+
+        this.refresh();
     };
 
     zoomIn = () => {
@@ -250,24 +259,35 @@ class Map extends React.Component {
                 ref={(ref) => (this.map = ref)}
                 className={`map ${this.state.dragging ? 'dragging' : 'drag'}`}
                 onMouseDown={(e) => {
+                    const { clientX, clientY } = e;
                     this.state.dragging = true;
-                    this.state.tempX = e.clientX;
-                    this.state.tempY = e.clientY;
+                    this.state.cache = {
+                        x: clientX,
+                        y: clientY,
+                    };
+                    this.state.tempX = clientX;
+                    this.state.tempY = clientY;
                     this.refresh();
                 }}
                 onMouseMove={(e) => {
-                    const { clientX, clientY } = e;
                     if (!this.state.dragging) return false;
+                    const { clientX, clientY } = e;
                     this._offset.left += clientX - this.state.tempX;
                     this._offset.top += clientY - this.state.tempY;
                     this.state.tempX = clientX;
                     this.state.tempY = clientY;
                 }}
                 onMouseUp={(e) => {
+                    if (!this.state.dragging) return false;
                     this.state.dragging = false;
                     this.state.tempX = 0;
                     this.state.tempY = 0;
-                    this.__refresh_grid();
+                    const { clientX, clientY } = e;
+                    const { x, y } = this.state.cache;
+                    const tile = this._center.toTile(this._zoom);
+                    tile.move(x - clientX, y - clientY);
+                    this._center = tile.toLngLat();
+                    this.centerAndZoom(tile.toLngLat());
                     this.refresh();
                 }}
                 onWheel={async (e) => {
@@ -312,6 +332,7 @@ class Map extends React.Component {
             >
                 {this.state.init
                     ? [
+                          //其他
                           <div
                               key='map'
                               style={{
@@ -340,8 +361,22 @@ class Map extends React.Component {
                               >
                                   缩小
                               </button>
-                              <button onClick={(e) => {}}>测面积</button>
+                              <button
+                                  onClick={(e) => {
+                                      this.Graphs.enable();
+                                  }}
+                              >
+                                  打开
+                              </button>
+                              <button
+                                  onClick={(e) => {
+                                      this.Graphs.disable();
+                                  }}
+                              >
+                                  关闭
+                              </button>
                           </div>,
+                          // 网格层
                           <div
                               key='grid'
                               className='grid'
@@ -388,6 +423,7 @@ class Map extends React.Component {
                                       return this.renderLayers(item);
                                   })}
                           </div>,
+                          //   中心点
                           <div
                               ref={(ref) => (this.centerPoint = ref)}
                               key='center-point'
@@ -396,7 +432,14 @@ class Map extends React.Component {
                                   top: this._center_point.top,
                                   left: this._center_point.left,
                               }}
-                          ></div>,
+                          />,
+                          // 图形层
+                          <Graphs
+                              key={`graphs`}
+                              ref={(ref) => (this.Graphs = ref)}
+                              center={this._center}
+                              zoom={this._zoom}
+                          />,
                       ]
                     : null}
             </div>

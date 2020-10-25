@@ -32,6 +32,14 @@ class Tile {
         return this._pixel_y;
     }
 
+    get fullPixelX() {
+        return this._tile_x * config.length + this._pixel_x;
+    }
+
+    get fullPixelY() {
+        return this._tile_y * config.length + this._pixel_y;
+    }
+
     constructor(zoom, tileX, tileY, pixelX, pixelY) {
         this._zoom = zoom;
         this._tile_x = tileX;
@@ -51,8 +59,8 @@ class Tile {
     };
 
     move = (x, y) => {
-        const fullX = this._tile_x * config.length + this._pixel_x + x;
-        const fullY = this._tile_y * config.length + this._pixel_y + y;
+        const fullX = this.fullPixelX + x;
+        const fullY = this.fullPixelY + y;
         this._tile_x = Math.floor(fullX / config.length);
         this._pixel_x = fullX % config.length;
         this._tile_y = Math.ceil(fullY / config.length);

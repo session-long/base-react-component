@@ -21,6 +21,26 @@ class LngLat {
         this._lat = lat;
     }
 
+    clone = () => {
+        return new LngLat(this.lng, this.lat);
+    };
+
+    copy = (other) => {
+        this._lng = other.lng;
+        this._lat = other.lat;
+    };
+
+    distinctTo = (other, zoom) => {
+        const current = this.toTile(zoom);
+        const target = other.toTile(zoom);
+        const offsetX = target.fullPixelX - current.fullPixelX;
+        const offsetY = target.fullPixelY - current.fullPixelY;
+        return {
+            offsetX: offsetX,
+            offsetY: offsetY,
+        };
+    };
+
     toTile = (zoom) => {
         const tileX = this.__to_tile_x(zoom);
         const tileY = this.__to_tile_y(zoom);
