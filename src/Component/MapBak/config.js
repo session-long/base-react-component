@@ -1,6 +1,6 @@
 export default {
     testModel: false,
     length: 256,
-    maxZoom: 17,
-    minZoom: 10,
+    maxZoom: 19,
+    minZoom: 3,
 };

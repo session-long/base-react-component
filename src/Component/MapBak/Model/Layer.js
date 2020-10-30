@@ -18,22 +18,11 @@ class Layer {
 
     toRealUrl = (z, x, y) => {
         const url = this._url;
-        return this.config.replace(url, z, x, y);
+        return url.replace('{x}', x).replace('{y}', y).replace('{z}', z);
     };
 }
 
 class LayerConfig {
-
-    __default_replace = (url, z, x, y) => {
-        return url.replace('{x}', x).replace('{y}', y).replace('{z}', z);
-    }
-
-    __replace = null;
-
-    replace = (url, z, x, y) => {
-        return this.__replace ? this.__replace(this.__default_replace(url, z, x, y), { z, x, y }) : this.__default_replace(url, z, x, y);
-    }
-
     _bounds = null;
 
     get bounds() {
@@ -42,9 +31,8 @@ class LayerConfig {
         return this._bounds;
     }
 
-    constructor({ bounds, replace }) {
+    constructor({ bounds }) {
         this._bounds = bounds;
-        this.__replace = replace;
     }
 
     get maxLng() {

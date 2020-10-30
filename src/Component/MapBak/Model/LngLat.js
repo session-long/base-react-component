@@ -21,12 +21,6 @@ class LngLat {
         this._lat = lat;
     }
 
-    toJson = () => {
-        return {
-            lng: this.lng, lat: this.lat
-        }
-    }
-
     clone = () => {
         return new LngLat(this.lng, this.lat);
     };
@@ -70,9 +64,9 @@ class LngLat {
             (1 / 2 -
                 Math.log(
                     Math.tan(this.lat * (Math.PI / 180)) +
-                    1 / Math.cos(this.lat * (Math.PI / 180))
+                        1 / Math.cos(this.lat * (Math.PI / 180))
                 ) /
-                (2 * Math.PI)) *
+                    (2 * Math.PI)) *
             Math.pow(2, zoom)
         );
     };

@@ -1,6 +1,7 @@
 import React from 'react';
 import LngLat from '../Model/LngLat';
 import './index.scss';
+
 /**
  * zoom
  * center
@@ -20,24 +21,25 @@ class Index extends React.Component {
     enable = () => {
         if (this.state.visible) return;
         this.state.visible = true;
-        this.__add_graph(GraphType.rectangle);
+        // this.__add_graph(GraphType.rectangle);
         this.refresh();
     };
 
     disable = () => {
         if (!this.state.visible) return;
-        this._graphs.forEach((item) => {
-            console.log(item.points);
-        });
-        this.destory();
+        // this._graphs.forEach((item) => {
+        //     console.log(item.points);
+        // });
+        this.destroy();
         this.refresh();
     };
 
-    destory = () => {
+    destroy = () => {
         this.state.visible = false;
         this.state.dragging = false;
         this._graphs = [];
         this.svg = null;
+        this.refresh();
     };
 
     /**
@@ -84,15 +86,54 @@ class Index extends React.Component {
         return [topLeft, bottomRight];
     };
 
-    __add_graph = (type) => {
-        const graph = new Graph(null, type, this.__get_points_by_center());
+    __add_rectangle = (type, editable, callback) => {
+        if (type !== GraphType.rectangle) return;
+        const groups = [];
+        const bounds = this.__get_points_by_center();
+        const graph = new Graph(null, type, groups, bounds, editable);
         this._graphs.push(graph);
+        callback && callback(graph);
     };
 
-    addGraph = (type) => {
+    __add_polygon = (type, pointGroups, bounds, editable, callback) => {
+        if (type !== GraphType.polygon) return;
+        const groups = pointGroups
+            ? pointGroups.map((pointGroup) => {
+                  const group = pointGroup.map(
+                      (point) => new LngLat(point.lng, point.lat)
+                  );
+                  return group;
+              })
+            : null;
+        const graph = new Graph(null, type, groups, bounds, editable);
+        this._graphs.push(graph);
+        callback && callback(graph);
+    };
+
+    addGraph = (type, pointGroups = null, bounds = null, editable = true) => {
         if (!this.state.visible) return;
-        this.__add_graph(GraphType.rectangle);
+        let graph = null;
+        this.__add_rectangle(type, editable, (data) => {
+            graph = data;
+        });
+        this.__add_polygon(type, pointGroups, bounds, editable, (data) => {
+            graph = data;
+        });
         this.refresh();
+        return graph;
+    };
+
+    __to_group_str_list = (groups) => {
+        if (!groups || groups.length === 0) return null;
+        let groupStrList = [];
+        groups.forEach((group) => {
+            let groupStr = '';
+            group.forEach((point) => {
+                groupStr += `${point.x},${point.y} `;
+            });
+            groupStrList.push(groupStr);
+        });
+        return groupStrList;
     };
 
     render() {
@@ -122,7 +163,6 @@ class Index extends React.Component {
                                     .move(clientX - x, clientY - y)
                                     .toLngLat();
                                 target.copy(newTarget);
-                                console.log(target);
                             });
                             this.refresh(() => {
                                 this.state.cache = {
@@ -143,6 +183,10 @@ class Index extends React.Component {
                     >
                         {this.svg &&
                             this._graphs.map((graph) => {
+                                if (!graph.type) {
+                                    console.log('图形类型不存在');
+                                    return null;
+                                }
                                 const { x, y } = this.centerPoint;
                                 const topLeftLngLat = graph.topLeftLngLat;
                                 const {
@@ -161,61 +205,128 @@ class Index extends React.Component {
                                     bottomRightLngLat,
                                     this.zoom
                                 );
+                                let groups = [];
+                                switch (graph.type) {
+                                    case GraphType.polygon:
+                                        groups = graph.toPointGroups(
+                                            this.center,
+                                            this.centerPoint,
+                                            this.zoom
+                                        );
+                                        break;
+                                    case GraphType.rectangle:
+                                        break;
+                                    default:
+                                        console.log('未知图形类型');
+                                        return;
+                                }
+                                const groupStrs = this.__to_group_str_list(
+                                    groups
+                                );
 
                                 return (
                                     <g key={graph.id}>
-                                        <rect
-                                            width={width}
-                                            height={height}
-                                            x={x - cx}
-                                            y={y - cy}
-                                            onMouseDown={(e) => {
-                                                e.stopPropagation();
-                                                const { clientX, clientY } = e;
-                                                this.state.dragging = true;
-                                                this.state.target =
-                                                    graph.points;
-                                                this.state.cache = {
-                                                    x: clientX,
-                                                    y: clientY,
-                                                };
-                                                this.refresh();
-                                            }}
-                                        />
-                                        {graph.points.map((point, index) => {
-                                            const {
-                                                offsetX,
-                                                offsetY,
-                                            } = point.distinctTo(
-                                                this.center,
-                                                this.zoom
-                                            );
-                                            return (
-                                                <circle
-                                                    key={`graph-item-${index}`}
-                                                    cx={x - offsetX}
-                                                    cy={y - offsetY}
-                                                    r={8}
-                                                    fill='red'
-                                                    onMouseDown={(e) => {
-                                                        e.stopPropagation();
-                                                        const {
-                                                            clientX,
-                                                            clientY,
-                                                        } = e;
-                                                        this.state.dragging = true;
-                                                        this.state.target = [
-                                                            point,
-                                                        ];
-                                                        this.state.cache = {
-                                                            x: clientX,
-                                                            y: clientY,
-                                                        };
-                                                        this.refresh();
-                                                    }}
-                                                />
-                                            );
-                                        })}
+                                        {graph.type === GraphType.rectangle && (
+                                            <rect
+                                                width={width}
+                                                height={height}
+                                                x={x - cx}
+                                                y={y - cy}
+                                                // style='fill:white;opacity:0.35'
+                                                fill='#ffffff'
+                                                opacity={0.35}
+                                                stroke={'blue'}
+                                                strokeWidth={2}
+                                                strokeOpacity={1}
+                                                onMouseDown={(e) => {
+                                                    if (!graph.editable) return;
+                                                    e.stopPropagation();
+                                                    const {
+                                                        clientX,
+                                                        clientY,
+                                                    } = e;
+                                                    this.state.dragging = true;
+                                                    this.state.target =
+                                                        graph.points;
+                                                    this.state.cache = {
+                                                        x: clientX,
+                                                        y: clientY,
+                                                    };
+                                                    this.refresh();
+                                                }}
+                                            />
+                                        )}
+                                        {graph.type === GraphType.polygon
+                                            ? groupStrs.map(
+                                                  (groupStr, index) => (
+                                                      <polygon
+                                                          key={`polygon-${index}`}
+                                                          // points='100,10 40,198 190,78 10,78 160,198'
+                                                          points={groupStr}
+                                                          // style='fill:white;opacity:0.35'
+                                                          fill={'transparent'}
+                                                          opacity={1}
+                                                          stroke={'#ff0000'}
+                                                          strokeWidth={3}
+                                                          strokeOpacity={1}
+                                                          onMouseDown={(e) => {
+                                                              if (
+                                                                  !graph.editable
+                                                              )
+                                                                  return;
+                                                              e.stopPropagation();
+                                                              const {
+                                                                  clientX,
+                                                                  clientY,
+                                                              } = e;
+                                                              this.state.dragging = true;
+                                                              this.state.target =
+                                                                  graph.points;
+                                                              this.state.cache = {
+                                                                  x: clientX,
+                                                                  y: clientY,
+                                                              };
+                                                              this.refresh();
+                                                          }}
+                                                      />
+                                                  )
+                                              )
+                                            : null}
+                                        {graph.editable &&
+                                            graph.bounds.map((point, index) => {
+                                                const {
+                                                    offsetX,
+                                                    offsetY,
+                                                } = point.distinctTo(
+                                                    this.center,
+                                                    this.zoom
+                                                );
+                                                return (
+                                                    <circle
+                                                        key={`graph-item-${index}`}
+                                                        cx={x - offsetX}
+                                                        cy={y - offsetY}
+                                                        r={8}
+                                                        fill='red'
+                                                        onMouseDown={(e) => {
+                                                            e.stopPropagation();
+                                                            const {
+                                                                clientX,
+                                                                clientY,
+                                                            } = e;
+                                                            this.state.dragging = true;
+                                                            this.state.target = [
+                                                                point,
+                                                            ];
+                                                            this.state.cache = {
+                                                                x: clientX,
+                                                                y: clientY,
+                                                            };
+                                                            this.refresh();
+                                                        }}
+                                                    />
+                                                );
+                                            })}
                                     </g>
                                 );
                             })}
@@ -231,35 +342,39 @@ class Graph {
 
     type = null;
 
-    points = [];
+    groups = [];
+
+    bounds = [];
 
     options = null;
 
+    editable = null;
+
     get maxLng() {
-        if (!this.points) return null;
-        if (this.points.length === 0) return null;
-        const list = this.points.map((item) => item.lng).sort((a, b) => b - a);
+        if (!this.bounds) return null;
+        if (this.bounds.length === 0) return null;
+        const list = this.bounds.map((item) => item.lng).sort((a, b) => b - a);
         return list[0];
     }
 
     get maxLat() {
-        if (!this.points) return null;
-        if (this.points.length === 0) return null;
-        const list = this.points.map((item) => item.lat).sort((a, b) => b - a);
+        if (!this.bounds) return null;
+        if (this.bounds.length === 0) return null;
+        const list = this.bounds.map((item) => item.lat).sort((a, b) => b - a);
         return list[0];
     }
 
     get minLng() {
-        if (!this.points) return null;
-        if (this.points.length === 0) return null;
-        const list = this.points.map((item) => item.lng).sort((a, b) => a - b);
+        if (!this.bounds) return null;
+        if (this.bounds.length === 0) return null;
+        const list = this.bounds.map((item) => item.lng).sort((a, b) => a - b);
         return list[0];
     }
 
     get minLat() {
-        if (!this.points) return null;
-        if (this.points.length === 0) return null;
-        const list = this.points.map((item) => item.lat).sort((a, b) => a - b);
+        if (!this.bounds) return null;
+        if (this.bounds.length === 0) return null;
+        const list = this.bounds.map((item) => item.lat).sort((a, b) => a - b);
         return list[0];
     }
 
@@ -273,10 +388,26 @@ class Graph {
         // return new LngLat(this.minLng, this.maxLat);
     }
 
-    constructor(id, type, points, options) {
+    toPointGroups = (center, { x, y }, zoom) => {
+        const pointsGroups = this.groups.map((group) => {
+            const pointGroup = group.map((lnglat) => {
+                const { offsetX, offsetY } = lnglat.distinctTo(center, zoom);
+                return {
+                    x: x - offsetX,
+                    y: y - offsetY,
+                };
+            });
+            return pointGroup;
+        });
+        return pointsGroups;
+    };
+
+    constructor(id, type, groups, bounds, editable, options) {
         this.id = id || `graph-${type}-${new Date().getTime()}`;
         this.type = type;
-        this.points = points;
+        this.groups = groups;
+        this.bounds = bounds;
+        this.editable = editable;
         this.options = options;
     }
 }
@@ -286,6 +417,10 @@ const GraphType = {
      * 矩形
      */
     rectangle: 'rectangle',
+    /**
+     * 多边形
+     */
+    polygon: 'polygon',
 };
 
 export default Index;

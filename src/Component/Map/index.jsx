@@ -3,13 +3,14 @@ import Point from './Model/Point';
 import PointBounds from './Model/PointBounds';
 import LngLat from './Model/LngLat';
 import './index.scss';
-import { flatMap } from 'lodash';
 import Layer from './Model/Layer';
 import config from './config';
-import cache from './cache';
-import Tile from './Model/Tile';
 import Graphs from './Graphs';
+import { isEqual } from 'lodash';
 
+/**
+ * layers
+ */
 class Map extends React.Component {
     state = {
         init: false,
@@ -27,31 +28,9 @@ class Map extends React.Component {
             : null;
     }
 
-    _offset = {
-        top: 0,
-        left: 0,
-    };
-
-    _temp_offset = {
-        top: 0,
-        left: 0,
-        zoom: 10,
-    };
-
-    __set_temp_offset = (top, left, zoom = this._temp_offset.zoom) => {
-        this._temp_offset = {
-            top,
-            left,
-            zoom,
-        };
-    };
-
-    __reset_temp_offset = () => {
-        this._temp_offset = {
-            top: 0,
-            left: 0,
-            zoom: 10,
-        };
+    _translate = {
+        x: 0,
+        y: 0,
     };
 
     /**
@@ -63,9 +42,26 @@ class Map extends React.Component {
      * 中心经纬度点
      */
     // 北京
-    _center = new LngLat(116.40769, 39.89945);
+    // _center = new LngLat(116.40769, 39.89945);
     // 天津
     // _center = new LngLat(117.2, 39.13);
+    _center = new LngLat(104.5925, 26.86);
+
+    get center() {
+        const lnglat = this._center
+            .toTile(this._zoom)
+            .move(-1 * this._translate.x, -1 * this._translate.y)
+            .toLngLat();
+        return lnglat;
+    }
+
+    /**
+     * 中心点的偏移量
+     */
+    _offset = {
+        top: 0,
+        left: 0,
+    };
 
     _grid = null;
 
@@ -86,42 +82,23 @@ class Map extends React.Component {
     _base_layer = null;
 
     _layers = [
-        new Layer('http://c.tile.stamen.com/toner/{z}/{x}/{y}.png', {
-            bounds: [new LngLat(117.2, 39.13), new LngLat(116.40769, 39.89945)],
-        }),
+        new Layer(
+            // 'http://c.tile.stamen.com/toner/{z}/{x}/{y}.png',
+            `http://192.168.1.128/static_map/gf_map/520201/2020/{z}/{x}/{y}.png`,
+            {
+                bounds: [
+                    new LngLat(104.5925, 26.86),
+                    new LngLat(105.099444, 26.441944),
+                ],
+            }
+        ),
     ];
 
+    get layers() {
+        return this.props.layers || [];
+    }
+
     _overlays = [];
-
-    constructor(props) {
-        super(props);
-    }
-
-    componentDidMount() {
-        console.log('地图初始化');
-        console.log(new LngLat(116.40769, 39.89945).toTile(10));
-        console.log(new LngLat(117.2, 39.13).toTile(10));
-
-        // 构建中心像素点
-        this.__init_center_point();
-
-        // 构建网格
-        this.__init_grid();
-
-        // 根据中心经纬度点计算偏移量
-        this.__init_offset();
-
-        this.__refresh_grid();
-
-        // 其他
-        this.__init_base_layer();
-
-        this.setState({ init: true });
-
-        // setTimeout(() => {
-        //     this.centerAndZoom(new LngLat(117.2, 39.13));
-        // }, 3000);
-    }
 
     __init_center_point = () => {
         const _width = this.map.clientWidth;
@@ -139,8 +116,15 @@ class Map extends React.Component {
 
     __init_base_layer = () => {
         this._base_layer = new Layer(
-            'http://a.tile.osm.org/{z}/{x}/{y}.png',
-            {}
+            'http://{r}.tile.osm.org/{z}/{x}/{y}.png',
+            {
+                replace: (url) => {
+                    const index = Math.floor(Math.random() * 3);
+                    const list = ['a', 'b', 'c'];
+                    const prefix = list[index];
+                    return url.replace('{r}', prefix);
+                },
+            }
         );
     };
 
@@ -150,7 +134,7 @@ class Map extends React.Component {
         const _height = this.map.clientHeight;
         const _length = _width > _height ? _width : _height;
         let _size = Math.ceil(_length / config.length);
-        _size += _size % 2 === 0 ? 1 : 2;
+        _size += _size % 2 === 0 ? 3 : 2;
         this._grid_length = _size;
         const middle = Math.ceil(this._grid_length / 2);
 
@@ -176,8 +160,13 @@ class Map extends React.Component {
         const list = this.__get_survive_grid_point();
         const len = list.length;
         if (len === Math.pow(gridLen, 2)) return false;
-        const offsetX = Math.ceil(this._offset.left / config.length);
-        const offsetY = Math.ceil(this._offset.top / config.length);
+
+        const offsetX = Math.ceil(
+            (-1 * this._offset.left + this._translate.x) / config.length
+        );
+        const offsetY = Math.ceil(
+            (-1 * this._offset.top + this._translate.y) / config.length
+        );
         const middle = Math.ceil(this._grid_length / 2);
         const gridLen = this._grid_length;
         for (let i = 1; i <= gridLen; i++) {
@@ -204,33 +193,41 @@ class Map extends React.Component {
         return list;
     };
 
-    centerAndZoom = (center = this._center, zoom = this._zoom) => {
-        this._center = center;
+    centerAndZoom = (center, zoom = this._zoom, keep = true) => {
+        const hasCenter = center ? true : false;
+
+        const { lng, lat } = hasCenter ? center : this._center;
+        this._center = new LngLat(lng, lat);
+
+        this._translate = {
+            x: 0,
+            y: 0,
+        };
 
         // 根据中心经纬度点计算偏移量
-        this.__init_offset();
+        hasCenter && this.__init_offset();
 
         // 刷新网格
-        this.__refresh_grid();
+        hasCenter && this.__refresh_grid();
 
         // 改变层级
-        this.__set_zoom(zoom);
+        zoom !== this._zoom && this.__set_zoom(zoom);
 
         // 根据中心经纬度点计算偏移量
-        this.__init_offset();
+        zoom !== this._zoom && this.__init_offset();
 
         // 刷新网格
-        this.__refresh_grid();
+        zoom !== this._zoom && this.__refresh_grid();
 
-        this.refresh();
+        keep && this.refresh();
     };
 
     zoomIn = () => {
-        this.centerAndZoom(this._center, this._zoom + 1);
+        this.centerAndZoom(this.center, this._zoom + 1);
     };
 
     zoomOut = () => {
-        this.centerAndZoom(this._center, this._zoom - 1);
+        this.centerAndZoom(this.center, this._zoom - 1);
     };
 
     setBaseLayer = (layer) => {};
@@ -248,12 +245,35 @@ class Map extends React.Component {
     cleanOverlays = () => {};
 
     refresh = () => {
-        this.__reset_temp_offset();
         this.setState({});
     };
 
+    componentDidMount() {
+        // 构建中心像素点
+        this.__init_center_point();
+
+        // 构建网格
+        this.__init_grid();
+
+        // 根据中心经纬度点计算偏移量
+        this.__init_offset();
+
+        // 刷新网格
+        this.__refresh_grid();
+
+        // 其他
+        this.__init_base_layer();
+
+        this.setState({ init: true });
+    }
+
+    componentDidUpdate(preProps) {
+        if (!isEqual(this.props, preProps)) {
+            this.refresh();
+        }
+    }
+
     render() {
-        console.log('地图刷新了', new Date().getTime());
         return (
             <div
                 ref={(ref) => (this.map = ref)}
@@ -261,127 +281,133 @@ class Map extends React.Component {
                 onMouseDown={(e) => {
                     const { clientX, clientY } = e;
                     this.state.dragging = true;
-                    this.state.cache = {
+                    this.state.temp = {
                         x: clientX,
                         y: clientY,
                     };
-                    this.state.tempX = clientX;
-                    this.state.tempY = clientY;
                     this.refresh();
                 }}
                 onMouseMove={(e) => {
                     if (!this.state.dragging) return false;
                     const { clientX, clientY } = e;
-                    this._offset.left += clientX - this.state.tempX;
-                    this._offset.top += clientY - this.state.tempY;
-                    this.state.tempX = clientX;
-                    this.state.tempY = clientY;
+                    const { x, y } = this.state.temp;
+                    this._translate.x += clientX - x;
+                    this._translate.y += clientY - y;
+                    this.state.temp = {
+                        x: clientX,
+                        y: clientY,
+                    };
+                    this.refresh();
                 }}
                 onMouseUp={(e) => {
                     if (!this.state.dragging) return false;
                     this.state.dragging = false;
-                    this.state.tempX = 0;
-                    this.state.tempY = 0;
                     const { clientX, clientY } = e;
-                    const { x, y } = this.state.cache;
-                    const tile = this._center.toTile(this._zoom);
-                    tile.move(x - clientX, y - clientY);
-                    this._center = tile.toLngLat();
-                    this.centerAndZoom(tile.toLngLat());
+                    const { x, y } = this.state.temp;
+                    this._translate.x += clientX - x;
+                    this._translate.y += clientY - y;
+
+                    // 刷新网格
+                    this.__refresh_grid();
+
                     this.refresh();
+
+                    // const tile = this._center.toTile(this._zoom);
+                    // tile.move(x - clientX, y - clientY);
+                    // this._center = tile.toLngLat();
+                    // this.centerAndZoom();
                 }}
                 onWheel={async (e) => {
                     e.stopPropagation();
 
-                    // 中心点的像素位置
-                    const { x, y } = this.centerPoint.getBoundingClientRect();
-
                     // 鼠标点的像素位置
                     const { clientX, clientY } = e;
 
+                    // 中心点的像素位置
+                    const { x, y } = this.centerPoint.getBoundingClientRect();
+
                     // 计算偏移量
-                    const offset = { x: clientX - x, y: clientY - y };
-
-                    // 鼠标点的瓦片数据
-                    const targetTile = this._center
-                        .toTile(this._zoom)
-                        .clone()
-                        .move(offset.x, offset.y);
-
-                    // 鼠标点的经纬度
-                    const targetLngLat = targetTile.toLngLat();
+                    this._translate.x += x - clientX;
+                    this._translate.y += y - clientY;
 
                     // 判断鼠标滚轮的上下滑动
                     const deta = e.deltaY;
+                    // if (deta > 0 && this.zoom > config.minZoom) {
                     if (deta > 0) {
-                        this.centerAndZoom(targetLngLat, this._zoom - 1);
+                        this.centerAndZoom(this.center, this._zoom - 1, false);
+                        // } else if (deta < 0 && this.zoom >= config.maxZoom) {
                     } else if (deta < 0) {
-                        this.centerAndZoom(targetLngLat, this._zoom + 1);
+                        this.centerAndZoom(this.center, this._zoom + 1, false);
+                    } else {
+                        return;
                     }
 
                     // 中心点归位
-                    const newCenterTile = targetLngLat
-                        .toTile(this._zoom)
-                        .clone()
-                        .move(-1 * offset.x, -1 * offset.y);
+                    this._translate.x += clientX - x;
+                    this._translate.y += clientY - y;
 
-                    this.centerAndZoom(newCenterTile.toLngLat());
-
-                    this.refresh();
+                    this.centerAndZoom(this.center);
                 }}
             >
                 {this.state.init
                     ? [
                           //其他
-                          <div
-                              key='map'
-                              style={{
-                                  position: 'fixed',
-                                  top: 0,
-                                  left: 0,
-                                  zIndex: 9,
-                              }}
-                          >
-                              <div style={{ backgroundColor: '#ffffff' }}>
-                                  地图当前层级 {this._zoom}
+
+                          config.testModel && (
+                              <div
+                                  key='map'
+                                  style={{
+                                      position: 'fixed',
+                                      top: 0,
+                                      left: 0,
+                                      zIndex: 9,
+                                  }}
+                              >
+                                  <div style={{ backgroundColor: '#ffffff' }}>
+                                      地图当前层级 {this._zoom}
+                                  </div>
+                                  <button
+                                      onClick={(e) => {
+                                          this.zoomIn();
+                                          this.refresh();
+                                      }}
+                                  >
+                                      放大
+                                  </button>
+                                  <button
+                                      onClick={(e) => {
+                                          this.zoomOut();
+                                          this.refresh();
+                                      }}
+                                  >
+                                      缩小
+                                  </button>
+                                  <button
+                                      onClick={(e) => {
+                                          this.Graphs.enable();
+                                      }}
+                                  >
+                                      打开
+                                  </button>
+                                  <button
+                                      onClick={(e) => {
+                                          this.Graphs.disable();
+                                      }}
+                                  >
+                                      关闭
+                                  </button>
                               </div>
-                              <button
-                                  onClick={(e) => {
-                                      this.zoomIn();
-                                      this.refresh();
-                                  }}
-                              >
-                                  放大
-                              </button>
-                              <button
-                                  onClick={(e) => {
-                                      this.zoomOut();
-                                      this.refresh();
-                                  }}
-                              >
-                                  缩小
-                              </button>
-                              <button
-                                  onClick={(e) => {
-                                      this.Graphs.enable();
-                                  }}
-                              >
-                                  打开
-                              </button>
-                              <button
-                                  onClick={(e) => {
-                                      this.Graphs.disable();
-                                  }}
-                              >
-                                  关闭
-                              </button>
-                          </div>,
+                          ),
                           // 网格层
                           <div
                               key='grid'
                               className='grid'
                               style={{
-                                  transform: `translate3d(${this._offset.left}px, ${this._offset.top}px, 0px)`,
+                                  transform: `translate3d(${
+                                      this._offset.left + this._translate.x
+                                  }px, ${
+                                      this._offset.top + this._translate.y
+                                  }px, 0px)`,
                               }}
                           >
                               {config.testModel &&
@@ -431,13 +457,17 @@ class Map extends React.Component {
                               style={{
                                   top: this._center_point.top,
                                   left: this._center_point.left,
+                                  //   visibility: this.props.showCenterPoint,
+                                  visibility: this.props.showCenterPoint
+                                      ? 'visible'
+                                      : 'hidden',
                               }}
                           />,
                           // 图形层
                           <Graphs
                               key={`graphs`}
                               ref={(ref) => (this.Graphs = ref)}
-                              center={this._center}
+                              center={this.center}
                               zoom={this._zoom}
                           />,
                       ]
@@ -448,7 +478,7 @@ class Map extends React.Component {
 
     renderLayers({ x, y, t, top, left }) {
         const { tileX, tileY, zoom: z } = this._center.toTile(this._zoom);
-        const list = [this._base_layer].concat(this._layers);
+        const list = [this._base_layer].concat(this.layers);
         return list.map((layer, index) => {
             const src = layer.toRealUrl(z, tileX + x, tileY + y);
             const bounds = layer.config.bounds;
