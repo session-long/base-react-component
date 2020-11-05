@@ -247,7 +247,7 @@ class Index extends React.Component {
                                                     } = e;
                                                     this.state.dragging = true;
                                                     this.state.target =
-                                                        graph.points;
+                                                        graph.bounds;
                                                     this.state.cache = {
                                                         x: clientX,
                                                         y: clientY,
@@ -281,7 +281,7 @@ class Index extends React.Component {
                                                               } = e;
                                                               this.state.dragging = true;
                                                               this.state.target =
-                                                                  graph.points;
+                                                                  graph.bounds;
                                                               this.state.cache = {
                                                                   x: clientX,
                                                                   y: clientY,
@@ -346,8 +346,6 @@ class Graph {
 
     bounds = [];
 
-    options = null;
-
     editable = null;
 
     get maxLng() {
@@ -402,13 +400,12 @@ class Graph {
         return pointsGroups;
     };
 
-    constructor(id, type, groups, bounds, editable, options) {
+    constructor(id, type, groups, bounds, editable) {
         this.id = id || `graph-${type}-${new Date().getTime()}`;
         this.type = type;
         this.groups = groups;
         this.bounds = bounds;
         this.editable = editable;
-        this.options = options;
     }
 }
 

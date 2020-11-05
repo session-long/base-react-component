@@ -7,6 +7,7 @@ import Layer from './Model/Layer';
 import config from './config';
 import Graphs from './Graphs';
 import { isEqual } from 'lodash';
+import * as Util from './Util';
 
 /**
  * layers
@@ -114,6 +115,10 @@ class Map extends React.Component {
         };
     };
 
+    __refresh_offset = () => {
+        this.__init_offset();
+    };
+
     __init_base_layer = () => {
         this._base_layer = new Layer(
             'http://{r}.tile.osm.org/{z}/{x}/{y}.png',
@@ -150,10 +155,6 @@ class Map extends React.Component {
         return true;
     };
 
-    __refresh_offset = () => {
-        this.__init_offset();
-    };
-
     __refresh_grid = () => {
         const timestamp = new Date().getTime();
 
@@ -174,7 +175,9 @@ class Map extends React.Component {
                 const x = i - middle;
                 const y = j - middle;
                 const isSurvive = list.some(
-                    (item) => x === item.x && y === item.y
+                    (item) =>
+                        -1 * (x + offsetX) === item.x &&
+                        -1 * (y + offsetY) === item.y
                 );
                 if (!isSurvive) {
                     const p = new Point(-1 * (x + offsetX), -1 * (y + offsetY));
@@ -186,6 +189,10 @@ class Map extends React.Component {
         return true;
     };
 
+    __clean_grid = () => {
+        this._grid_points = [];
+    };
+
     __get_survive_grid_point = () => {
         const list = this._grid_points.filter((item) => {
             return this._grid_bounds.isIn(item, this._offset);
@@ -194,6 +201,8 @@ class Map extends React.Component {
     };
 
     centerAndZoom = (center, zoom = this._zoom, keep = true) => {
+        if (zoom > config.maxZoom) return;
+        if (zoom < config.minZoom) return;
         const hasCenter = center ? true : false;
 
         const { lng, lat } = hasCenter ? center : this._center;
@@ -203,6 +212,8 @@ class Map extends React.Component {
             x: 0,
             y: 0,
         };
+
+        this.__clean_grid();
 
         // 根据中心经纬度点计算偏移量
         hasCenter && this.__init_offset();
@@ -321,7 +332,11 @@ class Map extends React.Component {
                     e.stopPropagation();
 
                     // 鼠标点的像素位置
-                    const { clientX, clientY } = e;
+                    const { clientX, clientY, deltaY } = e;
+
+                    // 判断鼠标滚轮的上下滑动
+                    if (deltaY > 0 && this._zoom <= config.minZoom) return;
+                    if (deltaY < 0 && this._zoom >= config.maxZoom) return;
 
                     // 中心点的像素位置
                     const { x, y } = this.centerPoint.getBoundingClientRect();
@@ -329,14 +344,11 @@ class Map extends React.Component {
                     // 计算偏移量
                     this._translate.x += x - clientX;
                     this._translate.y += y - clientY;
-
-                    // 判断鼠标滚轮的上下滑动
-                    const deta = e.deltaY;
                     // if (deta > 0 && this.zoom > config.minZoom) {
-                    if (deta > 0) {
+                    if (deltaY > 0) {
                         this.centerAndZoom(this.center, this._zoom - 1, false);
                         // } else if (deta < 0 && this.zoom >= config.maxZoom) {
-                    } else if (deta < 0) {
+                    } else if (deltaY < 0) {
                         this.centerAndZoom(this.center, this._zoom + 1, false);
                     } else {
                         return;
@@ -445,9 +457,17 @@ class Map extends React.Component {
                                       );
                                   })}
                               {!config.testModel &&
-                                  this._grid_points.map((item) => {
-                                      return this.renderLayers(item);
-                                  })}
+                                  this._grid_points
+                                      .sort((a, b) => {
+                                          return (
+                                              Math.abs(a.x) +
+                                              Math.abs(a.y) -
+                                              (Math.abs(b.x) + Math.abs(b.y))
+                                          );
+                                      })
+                                      .map((item) => {
+                                          return this.renderLayers(item);
+                                      })}
                           </div>,
                           //   中心点
                           <div
@@ -504,9 +524,12 @@ class Map extends React.Component {
             }
             return isIn ? (
                 <img
+                    // key={`layer-tile-${
+                    //     index === 0 ? 'default' : index
+                    // }-${t}-${x}-${y}`}
                     key={`layer-tile-${
                         index === 0 ? 'default' : index
-                    }-${t}-${x}-${y}`}
+                    }-${x}-${y}`}
                     className='layer-tile'
                     style={{
                         position: 'absolute',
@@ -528,3 +551,5 @@ class Map extends React.Component {
 }
 
 export default Map;
+
+export { Util };
