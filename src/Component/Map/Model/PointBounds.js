@@ -16,13 +16,11 @@ class PointBounds {
         this._bottom_right = bottomRightPoint;
     }
 
-    isIn = (point, offset) => {
-        const { left, top } = point;
-        const { left: offsetLeft, top: offsetTop } = offset;
-        if (left + offsetLeft < this.topLeftPoint.x) return false;
-        if (top + offsetTop < this.topLeftPoint.y) return false;
-        if (left + offsetLeft > this.bottomRightPoint.x) return false;
-        if (top + offsetTop > this.bottomRightPoint.y) return false;
+    isIn = ({ x, y }, { x: translateX, y: translateY }) => {
+        if (x < this.topLeftPoint.x - Math.ceil(translateX / 256)) return false;
+        if (y < this.topLeftPoint.y - Math.ceil(translateY / 256)) return false;
+        if (x > this.bottomRightPoint.x - Math.ceil(translateX / 256)) return false;
+        if (y > this.bottomRightPoint.y - Math.ceil(translateY / 256)) return false;
         return true;
     };
 }

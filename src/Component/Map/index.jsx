@@ -29,11 +29,6 @@ class Map extends React.Component {
             : null;
     }
 
-    _translate = {
-        x: 0,
-        y: 0,
-    };
-
     /**
      * 【缺省】中心经纬度点
      */
@@ -51,7 +46,7 @@ class Map extends React.Component {
     get center() {
         const lnglat = this._center
             .toTile(this._zoom)
-            .move(-1 * this._translate.x, -1 * this._translate.y)
+            .move(-1 * this._grid_translate.x, -1 * this._grid_translate.y)
             .toLngLat();
         return lnglat;
     }
@@ -67,6 +62,11 @@ class Map extends React.Component {
     _grid = null;
 
     _grid_bounds = null;
+
+    _grid_translate = {
+        x: 0,
+        y: 0,
+    };
 
     _grid_length = 0;
 
@@ -135,22 +135,15 @@ class Map extends React.Component {
 
     __init_grid = () => {
         if (!this.map) return false;
-        const _width = this.map.clientWidth;
-        const _height = this.map.clientHeight;
-        const _length = _width > _height ? _width : _height;
-        let _size = Math.ceil(_length / config.length);
-        _size += _size % 2 === 0 ? 3 : 2;
-        this._grid_length = _size;
-        const middle = Math.ceil(this._grid_length / 2);
+        const { clientWidth: width, clientHeight: height } = this.map;
+        const len = width > height ? width : height;
+        let size = Math.ceil(len / config.length);
+        size += size % 2 === 0 ? 3 : 2;
+        this._grid_length = size;
+        const middle = Math.ceil(size / 2);
 
-        const topLeftPoint = new Point(
-            (1 - middle) * config.length,
-            (1 - middle) * config.length
-        );
-        const bottomRightPoint = new Point(
-            (_size - middle) * config.length,
-            (_size - middle) * config.length
-        );
+        const topLeftPoint = new Point(1 - middle, 1 - middle);
+        const bottomRightPoint = new Point(size - middle, size - middle);
         this._grid_bounds = new PointBounds(topLeftPoint, bottomRightPoint);
         return true;
     };
@@ -162,30 +155,29 @@ class Map extends React.Component {
         const len = list.length;
         if (len === Math.pow(gridLen, 2)) return false;
 
-        const offsetX = Math.ceil(
-            (-1 * this._offset.left + this._translate.x) / config.length
-        );
-        const offsetY = Math.ceil(
-            (-1 * this._offset.top + this._translate.y) / config.length
-        );
+        const { x: translateX, y: translateY } = this._grid_translate;
+
+        const offsetX = Math.ceil(translateX / config.length);
+        const offsetY = Math.ceil(translateY / config.length);
         const middle = Math.ceil(this._grid_length / 2);
         const gridLen = this._grid_length;
+        const extraList = [];
         for (let i = 1; i <= gridLen; i++) {
             for (let j = 1; j <= gridLen; j++) {
                 const x = i - middle;
                 const y = j - middle;
                 const isSurvive = list.some(
-                    (item) =>
-                        -1 * (x + offsetX) === item.x &&
-                        -1 * (y + offsetY) === item.y
+                    (item) => x - offsetX === item.x && y - offsetY === item.y
                 );
                 if (!isSurvive) {
-                    const p = new Point(-1 * (x + offsetX), -1 * (y + offsetY));
+                    const p = new Point(x - offsetX, y - offsetY);
                     p.t = timestamp;
-                    this._grid_points.push(p);
+                    extraList.push(p);
+                    // this._grid_points.push(p);
                 }
             }
         }
+        this._grid_points = list.concat(extraList);
         return true;
     };
 
@@ -194,8 +186,9 @@ class Map extends React.Component {
     };
 
     __get_survive_grid_point = () => {
-        const list = this._grid_points.filter((item) => {
-            return this._grid_bounds.isIn(item, this._offset);
+        const list = this._grid_points.filter((item, index) => {
+            const flag = this._grid_bounds.isIn(item, this._grid_translate);
+            return flag;
         });
         return list;
     };
@@ -208,7 +201,7 @@ class Map extends React.Component {
         const { lng, lat } = hasCenter ? center : this._center;
         this._center = new LngLat(lng, lat);
 
-        this._translate = {
+        this._grid_translate = {
             x: 0,
             y: 0,
         };
@@ -256,6 +249,7 @@ class Map extends React.Component {
     cleanOverlays = () => {};
 
     refresh = () => {
+        console.log(this._grid_points.length);
         this.setState({});
     };
 
@@ -302,8 +296,8 @@ class Map extends React.Component {
                     if (!this.state.dragging) return false;
                     const { clientX, clientY } = e;
                     const { x, y } = this.state.temp;
-                    this._translate.x += clientX - x;
-                    this._translate.y += clientY - y;
+                    this._grid_translate.x += clientX - x;
+                    this._grid_translate.y += clientY - y;
                     this.state.temp = {
                         x: clientX,
                         y: clientY,
@@ -315,8 +309,8 @@ class Map extends React.Component {
                     this.state.dragging = false;
                     const { clientX, clientY } = e;
                     const { x, y } = this.state.temp;
-                    this._translate.x += clientX - x;
-                    this._translate.y += clientY - y;
+                    this._grid_translate.x += clientX - x;
+                    this._grid_translate.y += clientY - y;
 
                     // 刷新网格
                     this.__refresh_grid();
@@ -342,8 +336,8 @@ class Map extends React.Component {
                     const { x, y } = this.centerPoint.getBoundingClientRect();
 
                     // 计算偏移量
-                    this._translate.x += x - clientX;
-                    this._translate.y += y - clientY;
+                    this._grid_translate.x += x - clientX;
+                    this._grid_translate.y += y - clientY;
                     // if (deta > 0 && this.zoom > config.minZoom) {
                     if (deltaY > 0) {
                         this.centerAndZoom(this.center, this._zoom - 1, false);
@@ -355,8 +349,8 @@ class Map extends React.Component {
                     }
 
                     // 中心点归位
-                    this._translate.x += clientX - x;
-                    this._translate.y += clientY - y;
+                    this._grid_translate.x += clientX - x;
+                    this._grid_translate.y += clientY - y;
 
                     this.centerAndZoom(this.center);
                 }}
@@ -416,9 +410,9 @@ class Map extends React.Component {
                               className='grid'
                               style={{
                                   transform: `translate3d(${
-                                      this._offset.left + this._translate.x
+                                      this._offset.left + this._grid_translate.x
                                   }px, ${
-                                      this._offset.top + this._translate.y
+                                      this._offset.top + this._grid_translate.y
                                   }px, 0px)`,
                               }}
                           >
