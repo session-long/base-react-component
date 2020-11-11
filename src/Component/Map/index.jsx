@@ -526,18 +526,15 @@ class Map extends React.Component {
                     }-${x}-${y}`}
                     className='layer-tile'
                     style={{
-                        position: 'absolute',
-                        width: `${config.length}px`,
-                        height: `${config.length}px`,
-                        borderRadius: '5px',
+                        width: `${config.length + 1}px`,
+                        height: `${config.length + 1}px`,
                         top: this._center_point.top,
                         left: this._center_point.left,
                         zIndex: index,
                         transform: `translate3d(${left}px, ${top}px, 0px)`,
-                        opacity: '1',
-                        userSelect: 'none',
                     }}
                     src={src}
+                    alt=''
                 />
             ) : null;
         });
