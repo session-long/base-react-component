@@ -50,8 +50,29 @@
         user-select   : none;
         clear         : both;
     }
+
+    &-point {
+        width        : 10px;
+        height       : 10px;
+        border-radius: 5px;
+    }
 }
 
 .layer-tile {
+    position         : absolute;
+    display          : block;
+    width            : 257px;
+    height           : 257px;
+    z-index          : 1;
+    background-size  : 100% 100%;
+    background-repeat: no-repeat;
+    background-color : transparent;
+    border           : none;
     -webkit-user-drag: none;
+}
+
+.test-layer-tile {
+    color    : red;
+    border   : 1px solid red;
+    font-size: 12px;
 }

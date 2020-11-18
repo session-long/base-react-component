@@ -8,6 +8,7 @@ import config from './config';
 import Graphs from './Graphs';
 import { isEqual } from 'lodash';
 import * as Util from './Util';
+import Image from '../../Component/Image';
 
 /**
  * layers
@@ -121,7 +122,8 @@ class Map extends React.Component {
 
     __init_base_layer = () => {
         this._base_layer = new Layer(
-            'http://{r}.tile.osm.org/{z}/{x}/{y}.png',
+            // 'http://{r}.tile.osm.org/{z}/{x}/{y}.png',
+            'http://a.tile.osm.org/{z}/{x}/{y}.png',
             {
                 replace: (url) => {
                     const index = Math.floor(Math.random() * 3);
@@ -138,7 +140,7 @@ class Map extends React.Component {
         const { clientWidth: width, clientHeight: height } = this.map;
         const len = width > height ? width : height;
         let size = Math.ceil(len / config.length);
-        size += size % 2 === 0 ? 3 : 2;
+        size += size % 2 === 0 ? 1 : 2;
         this._grid_length = size;
         const middle = Math.ceil(size / 2);
 
@@ -249,7 +251,6 @@ class Map extends React.Component {
     cleanOverlays = () => {};
 
     refresh = () => {
-        console.log(this._grid_points.length);
         this.setState({});
     };
 
@@ -322,8 +323,13 @@ class Map extends React.Component {
                     // this._center = tile.toLngLat();
                     // this.centerAndZoom();
                 }}
-                onWheel={async (e) => {
+                onWheel={(e) => {
                     e.stopPropagation();
+                    if (this.whealing) return;
+                    this.whealing = true;
+                    this.wheelTimer = setTimeout(() => {
+                        this.whealing = false;
+                    }, 200);
 
                     // 鼠标点的像素位置
                     const { clientX, clientY, deltaY } = e;
@@ -338,10 +344,8 @@ class Map extends React.Component {
                     // 计算偏移量
                     this._grid_translate.x += x - clientX;
                     this._grid_translate.y += y - clientY;
-                    // if (deta > 0 && this.zoom > config.minZoom) {
                     if (deltaY > 0) {
                         this.centerAndZoom(this.center, this._zoom - 1, false);
-                        // } else if (deta < 0 && this.zoom >= config.maxZoom) {
                     } else if (deltaY < 0) {
                         this.centerAndZoom(this.center, this._zoom + 1, false);
                     } else {
@@ -353,12 +357,97 @@ class Map extends React.Component {
                     this._grid_translate.y += clientY - y;
 
                     this.centerAndZoom(this.center);
+                    this.refresh();
                 }}
             >
                 {this.state.init
                     ? [
+                          // 图形层
+                          <Graphs
+                              key={`graphs`}
+                              ref={(ref) => (this.Graphs = ref)}
+                              center={this.center}
+                              zoom={this._zoom}
+                          />,
+                          // 网格层
+                          <div
+                              key='grid'
+                              className='grid'
+                              style={{
+                                  transform: `translate3d(${
+                                      this._offset.left + this._grid_translate.x
+                                  }px, ${
+                                      this._offset.top + this._grid_translate.y
+                                  }px, 0px)`,
+                              }}
+                          >
+                              {config.testModel &&
+                                  this._grid_points
+                                      .sort((a, b) => {
+                                          return (
+                                              Math.abs(a.x) +
+                                              Math.abs(a.y) -
+                                              (Math.abs(b.x) + Math.abs(b.y))
+                                          );
+                                      })
+                                      .map((item) => {
+                                          return (
+                                              <div
+                                                  key={`grid-point-${item.x}-${item.y}`}
+                                                  className='grid-point'
+                                                  style={{
+                                                      top:
+                                                          this._center_point
+                                                              .top - 5,
+                                                      left:
+                                                          this._center_point
+                                                              .left - 5,
+                                                      transform: `translate3d(${item.left}px, ${item.top}px, 0px)`,
+                                                  }}
+                                              >
+                                                  <div
+                                                      style={{
+                                                          position: 'absolute',
+                                                          top: '-6px',
+                                                          left: '20px',
+                                                          width: '200px',
+                                                          height: '24px',
+                                                          lineHeight: '24px',
+                                                          fontSize: '12px',
+                                                      }}
+                                                  >
+                                                      {item.x} : {item.y}
+                                                  </div>
+                                              </div>
+                                          );
+                                      })}
+                              {this._grid_points
+                                  .sort((a, b) => {
+                                      return (
+                                          Math.abs(a.x) +
+                                          Math.abs(a.y) -
+                                          (Math.abs(b.x) + Math.abs(b.y))
+                                      );
+                                  })
+                                  .map((item) => {
+                                      return this.renderLayers(item);
+                                  })}
+                          </div>,
+                          //   中心点
+                          <div
+                              ref={(ref) => (this.centerPoint = ref)}
+                              key='center-point'
+                              className='center-point'
+                              style={{
+                                  top: this._center_point.top,
+                                  left: this._center_point.left,
+                                  //   visibility: this.props.showCenterPoint,
+                                  visibility: this.props.showCenterPoint
+                                      ? 'visible'
+                                      : 'hidden',
+                              }}
+                          />,
                           //其他
-
                           config.testModel && (
                               <div
                                   key='map'
@@ -404,86 +493,6 @@ class Map extends React.Component {
                                   </button>
                               </div>
                           ),
-                          // 网格层
-                          <div
-                              key='grid'
-                              className='grid'
-                              style={{
-                                  transform: `translate3d(${
-                                      this._offset.left + this._grid_translate.x
-                                  }px, ${
-                                      this._offset.top + this._grid_translate.y
-                                  }px, 0px)`,
-                              }}
-                          >
-                              {config.testModel &&
-                                  this._grid_points.map((item) => {
-                                      return (
-                                          <div
-                                              key={`grid-point-${item.t}-${item.x}-${item.y}`}
-                                              className='grid-point'
-                                              style={{
-                                                  width: '10px',
-                                                  height: '10px',
-                                                  borderRadius: '5px',
-                                                  top:
-                                                      this._center_point.top -
-                                                      5,
-                                                  left:
-                                                      this._center_point.left -
-                                                      5,
-                                                  transform: `translate3d(${item.left}px, ${item.top}px, 0px)`,
-                                              }}
-                                          >
-                                              <div
-                                                  style={{
-                                                      position: 'absolute',
-                                                      top: '-6px',
-                                                      left: '20px',
-                                                      width: '200px',
-                                                      height: '24px',
-                                                      lineHeight: '24px',
-                                                  }}
-                                              >
-                                                  {item.x} : {item.y}
-                                              </div>
-                                          </div>
-                                      );
-                                  })}
-                              {!config.testModel &&
-                                  this._grid_points
-                                      .sort((a, b) => {
-                                          return (
-                                              Math.abs(a.x) +
-                                              Math.abs(a.y) -
-                                              (Math.abs(b.x) + Math.abs(b.y))
-                                          );
-                                      })
-                                      .map((item) => {
-                                          return this.renderLayers(item);
-                                      })}
-                          </div>,
-                          //   中心点
-                          <div
-                              ref={(ref) => (this.centerPoint = ref)}
-                              key='center-point'
-                              className='center-point'
-                              style={{
-                                  top: this._center_point.top,
-                                  left: this._center_point.left,
-                                  //   visibility: this.props.showCenterPoint,
-                                  visibility: this.props.showCenterPoint
-                                      ? 'visible'
-                                      : 'hidden',
-                              }}
-                          />,
-                          // 图形层
-                          <Graphs
-                              key={`graphs`}
-                              ref={(ref) => (this.Graphs = ref)}
-                              center={this.center}
-                              zoom={this._zoom}
-                          />,
                       ]
                     : null}
             </div>
@@ -516,28 +525,143 @@ class Map extends React.Component {
                 if (tileY + y + 1 > maxTileY) isIn = false;
                 if (tileY + y + 1 < minTileY) isIn = false;
             }
+
+            const key = `tile-${index === 0 ? 'default' : index}-${x}-${y}`;
             return isIn ? (
-                <img
-                    // key={`layer-tile-${
-                    //     index === 0 ? 'default' : index
-                    // }-${t}-${x}-${y}`}
-                    key={`layer-tile-${
-                        index === 0 ? 'default' : index
-                    }-${x}-${y}`}
-                    className='layer-tile'
-                    style={{
-                        width: `${config.length + 1}px`,
-                        height: `${config.length + 1}px`,
-                        top: this._center_point.top,
-                        left: this._center_point.left,
-                        zIndex: index,
-                        transform: `translate3d(${left}px, ${top}px, 0px)`,
-                    }}
+                // <Image
+                //     key={`layer-tile-${
+                //         index === 0 ? 'default' : index
+                //     }-${x}-${y}`}
+                //     className='layer-tile'
+                //     style={{
+                //         width: `${config.length + 1}px`,
+                //         height: `${config.length + 1}px`,
+                //         top: this._center_point.top,
+                //         left: this._center_point.left,
+                //         zIndex: index,
+                //         transform: `translate3d(${left}px, ${top}px, 0px)`,
+                //     }}
+                //     src={src}
+                //     alt=''
+                // />
+                // <img
+                //     key={`layer-tile-${x}-${y}`}
+                //     className='layer-tile'
+                //     style={{
+                //         top: this._center_point.top,
+                //         left: this._center_point.left,
+                //         zIndex: index,
+                //         transform: `translate3d(${left}px, ${top}px, 0px)`,
+                //     }}
+                //     ref={(ref) => {
+                //         console.log(x, y, ref);
+                //     }}
+                //     src={src}
+                //     alt=''
+                // />
+                // <div
+                //     key={`layer-tile-${x}-${y}`}
+                //     className={`layer-tile ${
+                //         config.testModel ? 'test-layer-tile' : ''
+                //     }`}
+                //     style={{
+                //         top: this._center_point.top,
+                //         left: this._center_point.left,
+                //         // zIndex: index,
+                //         transform: `translate3d(${left}px, ${top}px, 0px)`,
+                //         backgroundImage: `url(${src})`,
+                //     }}
+                // >
+                //     {x}:{y}:{z}
+                // </div>
+                <Tile
+                    key={key}
                     src={src}
-                    alt=''
+                    z={z}
+                    x={x}
+                    y={y}
+                    top={top}
+                    left={left}
+                    center={this._center_point}
                 />
             ) : null;
         });
+    }
+}
+
+class Tile extends React.Component {
+    get z() {
+        return this.props.z;
+    }
+
+    get x() {
+        return this.props.x;
+    }
+
+    get y() {
+        return this.props.y;
+    }
+
+    get top() {
+        return this.props.top;
+    }
+
+    get left() {
+        return this.props.left;
+    }
+
+    get cTop() {
+        return this.props.center.top;
+    }
+
+    get cLeft() {
+        return this.props.center.left;
+    }
+
+    get src() {
+        return this.props.src;
+    }
+
+    get style() {
+        return {};
+    }
+
+    get isTest() {
+        return config.testModel;
+    }
+
+    shouldComponentUpdate(nextProps) {
+        if (isEqual(this.props, nextProps)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    componentDidMount() {
+        console.log('init');
+    }
+
+    componentDidUpdate(preProps) {
+        console.log('up');
+    }
+
+    render() {
+        return (
+            <div
+                key={`layer-tile-${this.x}-${this.y}`}
+                className={`layer-tile ${this.isTest ? 'test-layer-tile' : ''}`}
+                style={{
+                    top: this.cTop,
+                    left: this.cLeft,
+                    // zIndex: index,
+                    transform: `translate3d(${this.left}px, ${this.top}px, 0px)`,
+                    backgroundImage: `url(${this.src})`,
+                }}
+            >
+                {this.x}:{this.y}:{this.z}
+            </div>
+        );
     }
 }
 
