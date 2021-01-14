@@ -1,10 +1,28 @@
 import qs from 'qs';
 import axios from 'axios';
 import Token from './Token';
-import RESPONSE_CODE from './Code';
+import API_CODE from './Code';
+import * as CONFIG from '../config';
 import { notification as Notification } from 'antd';
 
-const Axios = axios.create({ baseURL: '/api', timeout: 30000 });
+/**
+ * 缺省的工程地址
+ */
+const DEFAULT_BASE_URL = "/";
+
+/**
+ * 缺省的超时时长
+ */
+const DEFAULT_TIMEOUT = 3 * 1000
+
+/**
+ * 构建Axios实例
+ */
+const Axios = axios.create({ baseURL: CONFIG.projectBaseUri || DEFAULT_BASE_URL, timeout: DEFAULT_TIMEOUT });
+
+/**
+ * 定义Axios实例的请求拦截器
+ */
 Axios.interceptors.request.use(
     (config) => {
         // loading 动画
@@ -35,9 +53,10 @@ Axios.interceptors.request.use(
     }
 );
 
-// 请求响应拦截器
+/**
+ * 定义Axios实例的响应拦截器
+ */
 Axios.interceptors.response.use(
-    // 请求响应正常
     (response) => {
         let data;
         if (response.data === undefined) {
@@ -46,20 +65,12 @@ Axios.interceptors.response.use(
             data = response.data;
         }
 
+        // 根据返回的code值来做不同的处理（和后端约定）
         switch (data.code) {
-            // 如果请求正常
-            case RESPONSE_CODE.SUCCESS:
+            case API_CODE.SUCCESS:
                 break;
-            // 如果身份认证失败
-            case RESPONSE_CODE.UN_AUTH:
-                Notification.open({
-                    key: 'failure',
-                    message: '身份失效，请重新登录',
-                    description: '身份失效，请重新登录',
-                });
-                break;
-            // 如果请求异常
-            case RESPONSE_CODE.ERROR:
+            case API_CODE.ERROR:
+                // 请求异常逻辑
                 Notification.open({
                     key: 'failure',
                     message: '请求失败',
@@ -67,33 +78,27 @@ Axios.interceptors.response.use(
                 });
                 break;
             default:
-                // 其他情况
+                // 请求异常逻辑
                 Notification.open({
-                    key: 'other',
+                    key: 'work-resumption',
                     message: '发生错误',
                     description: data.msg,
                 });
-                return Promise.reject({
-                    key: 'error',
-                    message: '发生错误',
-                    description: data.msg,
-                });
+                return Promise.reject();
         }
         return data;
     },
-    // 请求响应异常
     (error) => {
-        // loading 关闭
         // 请求超时
         if (
             error.code === 'ECONNABORTED' &&
             error.message.indexOf('timeout') !== -1
         ) {
-            Notification.open({
-                message: '请求超时',
+            return Promise.reject({
+                type: "Error",
+                messgae: "请求超时",
                 description: '请检查网络或者稍后再试',
             });
-            // return service.request(originalRequest);//例如再重复请求一次
         }
 
         if (error && error.response) {
@@ -101,7 +106,6 @@ Axios.interceptors.response.use(
                 case 400:
                     error.message = '请求错误';
                     break;
-
                 case 403:
                     error.message = '拒绝访问';
                     break;
@@ -130,34 +134,42 @@ Axios.interceptors.response.use(
     }
 );
 
-const CONTENT_TYPE = {
+/**
+ * 缺省的content type
+ */
+const DEFAULT_CONTENT_TYPE = {
     JSON: 'application/json;',
     FORM: 'application/x-www-form-urlencoded; charset=UTF-8',
     UPLOAD: 'upload',
 };
 
+/**
+ * 缺省的Http Method
+ */
+const DEFAULT_HTTP_METHOD = {
+    GET: 'get',
+    POST: 'post',
+}
+
 class API {
-    static CONTENT_TYPE = { ...CONTENT_TYPE };
+    static CONTENT_TYPE = { ...DEFAULT_CONTENT_TYPE };
 
-    static HTTP_METHOD = {
-        GET: 'get',
-        POST: 'post',
+    static HTTP_METHOD = { ...DEFAULT_HTTP_METHOD };
+
+    static RESPONSE_CODE = { ...API_CODE };
+
+    static Token = { ...Token };
+
+    static config = (httpMethod, url, params, response) => {
+        return new API(httpMethod, url, params, response);
     };
 
-    static CODE = { ...RESPONSE_CODE };
-
-    static TOKEN = { ...Token };
-
-    static config = (httpMethod, url, params) => {
-        return new API(httpMethod, url, params);
+    static get = (url, params, response) => {
+        return this.config(this.HTTP_METHOD.GET, url, params, response);
     };
 
-    static get = (url, params) => {
-        return this.config(this.HTTP_METHOD.GET, url, params);
-    };
-
-    static post = (url, params) => {
-        return this.config(this.HTTP_METHOD.POST, url, params);
+    static post = (url, params, response) => {
+        return this.config(this.HTTP_METHOD.POST, url, params, response);
     };
 
     _content_type = null;
@@ -168,20 +180,25 @@ class API {
 
     _params = null;
 
-    _is_need_token = true;
+    _default_response = null;
 
+    _is_need_token = false;
+
+    // 时间戳
     _t = null;
 
     constructor(
         httpMethod = null,
         url = null,
         params = null,
+        response = null,
         t = new Date().getTime()
     ) {
-        this._content_type = CONTENT_TYPE.FORM;
+        this._content_type = DEFAULT_CONTENT_TYPE.FORM;
         this._url = url;
         this._http_method = httpMethod;
         this._params = params;
+        this._default_response = response;
         this._t = t;
     }
 
@@ -203,57 +220,80 @@ class API {
     };
 
     setAuth = () => {
-        this._is_need_token = false;
+        this._is_need_token = true;
         return this;
     };
 
-    commit = (timeout = 10 * 1000) => {
-        // if (this._is_need_token && !Token.getToken()) {
-        //     console.error('令牌不存在或已失效');
-        //     return false;
-        // }
+    commit = (timeout = DEFAULT_TIMEOUT) => {
+        if (this._is_need_token && !Token.getToken()) {
+            console.error('令牌不存在或已失效');
+            return;
+        }
 
         const Authorization = this._is_need_token
             ? { Authorization: Token.getToken() }
             : {};
-        let commonData = this.commonData ? { _t: this._t } : {};
-        let reqType =
-            this._http_method === 'post'
-                ? {
-                      data:
-                          this._content_type === CONTENT_TYPE.JSON
-                              ? { ...commonData, ...this._params }
-                              : qs.stringify({
-                                    ...commonData,
-                                    ...this._params,
-                                }),
-                  }
-                : { params: { ...commonData, ...this._params } };
-        let axios = Axios({
-            method: this._http_method,
-            url: this._url,
-            ...reqType,
+        const method = this._http_method;
+        const url = this._url;
+        const commonData = this.commonData ? { _t: this._t } : {};
+        const options = {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': this._content_type,
                 cetcClientType: 'Web',
                 ...Authorization,
             },
-        });
+            method: method,
+            url: url,
+        };
 
-        return new Promise((resolve, reject) => {
-            axios.then().catch(error => {
-                switch (error) {
-                    case RESPONSE_CODE.UN_AUTH:
-                        // 跳转到登录页面
-                        break;
-                
-                    default:
+        if (
+            this._content_type === DEFAULT_CONTENT_TYPE.JSON &&
+            method === API.HTTP_METHOD.GET
+        ) {
+            options.params = { ...commonData, ...this._params };
+        } else if (
+            this._content_type === DEFAULT_CONTENT_TYPE.JSON &&
+            method === API.HTTP_METHOD.POST
+        ) {
+            options.data = qs.stringify({ ...commonData, ...this._params });
+        } else if (
+            this._content_type === DEFAULT_CONTENT_TYPE.FORM &&
+            method === API.HTTP_METHOD.GET
+        ) {
+            options.params = { ...commonData, ...this._params };
+        } else if (
+            this._content_type === DEFAULT_CONTENT_TYPE.FORM &&
+            method === API.HTTP_METHOD.POST
+        ) {
+            options.data = { ...commonData, ...this._params };
+        } else {
+        }
 
-                        break;
-                }
-            });
-        });
+        return Axios({
+            ...options,
+        }).then(res => {
+            return Promise.resolve(res);
+        }).catch(e => {
+            const _t = (e && typeof e.type) ? e.type : "";
+            switch (_t.toLocaleUpperCase()) {
+                case "ERROR":
+                    return Promise.resolve({
+                        ...e,
+                        data: this._default_response,
+                    });
+
+                case "FAILURE":
+                    return Promise.resolve({
+                        ...e,
+                        data: this._default_response,
+                    });
+
+                default:
+                    return Promise.reject(e);
+            }
+
+        })
     };
 }
 

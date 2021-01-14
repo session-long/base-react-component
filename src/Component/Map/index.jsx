@@ -8,7 +8,6 @@ import config from './config';
 import Graphs from './Graphs';
 import { isEqual } from 'lodash';
 import * as Util from './Util';
-import Image from '../../Component/Image';
 
 /**
  * layers
