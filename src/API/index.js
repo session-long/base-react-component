@@ -275,7 +275,7 @@ class API {
         }).then(res => {
             return Promise.resolve(res);
         }).catch(e => {
-            const _t = (e && typeof e.type) ? e.type : "";
+            const _t = (e && typeof e.type === 'string') ? e.type : "";
             switch (_t.toLocaleUpperCase()) {
                 case "ERROR":
                     return Promise.resolve({

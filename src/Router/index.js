@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import Config from './RouterConfigHandler';
+import Config from './RouterHandler';
 import { Provider } from 'mobx-react';
 import Store from '../Store';
 import PackageConfig from '../../package.json';

@@ -27,20 +27,21 @@ class RouterConfigHandler extends React.Component {
                             return item.redirect ? (
                                 <Redirect key={index} to={item.redirect} />
                             ) : (
-                                <Route
-                                    key={index}
-                                    path={path}
-                                    render={(props) => {
-                                        return (
-                                            <item.component
-                                                {...props}
-                                                {...item}
-                                                pathPrefix={path}
-                                            />
-                                        );
-                                    }}
-                                />
-                            );
+                                    <Route
+                                        key={index}
+                                        path={path}
+                                        exact={item.exact}
+                                        render={(props) => {
+                                            return (
+                                                <item.component
+                                                    {...props}
+                                                    {...item}
+                                                    pathPrefix={path}
+                                                />
+                                            );
+                                        }}
+                                    />
+                                );
                         })}
                     </Switch>
                 }

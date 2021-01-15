@@ -5,7 +5,7 @@ import API from '../../API';
 
 class Index extends React.Component {
     componentDidMount() {
-        API.get('http://localhost:8080')
+        API.get('http://localhost:8080', null, 'default_value')
             .commit()
             .then((res) => console.log('xxx', res));
     }
